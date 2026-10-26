@@ -1,5 +1,7 @@
 # timesdraw
 
+[Live Demo](https://code.chuanqisun.com/timesdraw/)
+
 <img width="360" height="640" alt="timesdraw-tiled" src="https://github.com/user-attachments/assets/1f330275-68c7-4750-8d4b-5d9a0dc21fa5" />
 
 Predict the next 2 seconds of human hand sketch using [Timestral](https://mistral.ai/news/timestral/), a time-series foundation model by Mistral. It draws all 21 of the model's quantiles, from 0.01 to 0.99, each in its own rainbow colour from red (0.01) to violet (0.99). Each line starts at the end of your stroke and fades to transparent toward the end of the forecast. Lines also start fainter the further their quantile is from the median: the median (0.5) starts solid, and 0.01 and 0.99 start at 10%.
