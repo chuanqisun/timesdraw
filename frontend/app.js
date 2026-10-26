@@ -1,4 +1,4 @@
-// Collect a stroke on the canvas, resample it to a uniform grid, and draw the forecast.
+// Collect a stroke on the canvas, resample it to a uniform grid, and draw the forecast live.
 const HZ = 60, HORIZON = 120, MIN_POINTS = 8, MIN_ALPHA = 0.1;
 
 const canvas = document.getElementById("canvas");
@@ -7,10 +7,15 @@ const status = document.getElementById("status");
 let model = "";
 let pts = [];  // [t (s), x, y] with x, y in 0..1
 let drawing = false;
+let forecast = null;  // latest response's quantiles for the current stroke
+let strokeId = 0;     // bumped on pointerdown so late responses for an old stroke are dropped
+let inFlight = false;
+let sentLength = 0;   // pts.length covered by the last request; more points means a new one is due
+let frameQueued = false;
 
 fetch("/info").then(r => r.json()).then(info => {
   model = info.model;
-  status.textContent = `${model} - draw a stroke, release to forecast`;
+  status.textContent = `${model} - draw a stroke, the forecast follows your pen`;
 });
 
 function toUnit(e) {
@@ -45,42 +50,75 @@ function resample(pts) {
   return { x: xs, y: ys };
 }
 
+// Redraw everything: forecast underneath, stroke on top.
+function render() {
+  frameQueued = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (forecast) {
+    // Fade by rank distance from the median: median solid, outermost pair MIN_ALPHA, even steps
+    // between. Ranks rather than level values, so the tightly packed tails (0.95, 0.99) stay distinct.
+    const levels = Object.keys(forecast).sort((a, b) => a - b);
+    const mid = (levels.length - 1) / 2;
+    const byDistance = levels.map((level, i) => [level, Math.abs(i - mid)]).sort((a, b) => b[1] - a[1]);
+    for (const [level, d] of byDistance) {  // outermost first so the median ends up on top
+      const [xs, ys] = forecast[level];
+      drawPath(xs, ys, "red", d === 0 ? 3 : 1.5, 1 - (1 - MIN_ALPHA) * d / Math.max(mid, 1));
+    }
+  }
+  if (pts.length > 1) drawPath(pts.map(p => p[1]), pts.map(p => p[2]), "black", 2, 1);
+}
+
+function scheduleRender() {
+  if (!frameQueued) { frameQueued = true; requestAnimationFrame(render); }
+}
+
+// Keep at most one request in flight; when it returns, send another if the stroke grew meanwhile.
+async function requestForecast() {
+  if (inFlight || pts.length < MIN_POINTS || pts.length === sentLength) return;
+  const context = resample(pts);
+  if (context.x.length < 2) return;
+  inFlight = true;
+  sentLength = pts.length;
+  const id = strokeId;
+  try {
+    const res = await fetch("/forecast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...context, horizon: HORIZON }),
+    });
+    const body = await res.json();
+    if (id !== strokeId) return;
+    if (!res.ok) { status.textContent = `Error: ${body.error}`; return; }
+    forecast = body.quantiles;
+    status.textContent = `${model} - context ${context.x.length} steps, forecast ${body.ms.toFixed(0)} ms`;
+    scheduleRender();
+  } catch (err) {
+    status.textContent = `Error: ${err.message}`;
+  } finally {
+    inFlight = false;
+    requestForecast();
+  }
+}
+
 canvas.addEventListener("pointerdown", e => {
   canvas.setPointerCapture(e.pointerId);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  strokeId++;
   pts = [[e.timeStamp / 1000, ...toUnit(e)]];
+  forecast = null;
+  sentLength = 0;
   drawing = true;
+  scheduleRender();
 });
 
 canvas.addEventListener("pointermove", e => {
   if (!drawing) return;
-  const prev = pts[pts.length - 1];
   pts.push([e.timeStamp / 1000, ...toUnit(e)]);
-  drawPath([prev[1], pts[pts.length - 1][1]], [prev[2], pts[pts.length - 1][2]], "black", 2, 1);
+  scheduleRender();
+  requestForecast();
 });
 
-canvas.addEventListener("pointerup", async () => {
+canvas.addEventListener("pointerup", () => {
   if (!drawing) return;
   drawing = false;
-  if (pts.length < MIN_POINTS) return;
-  const context = resample(pts);
-  if (context.x.length < 2) return;
-  status.textContent = "Forecasting…";
-  const res = await fetch("/forecast", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...context, horizon: HORIZON }),
-  });
-  const body = await res.json();
-  if (!res.ok) { status.textContent = `Error: ${body.error}`; return; }
-  // Fade by rank distance from the median: median solid, outermost pair MIN_ALPHA, even steps
-  // between. Ranks rather than level values, so the tightly packed tails (0.95, 0.99) stay distinct.
-  const levels = Object.keys(body.quantiles).sort((a, b) => a - b);
-  const mid = (levels.length - 1) / 2;
-  const byDistance = levels.map((level, i) => [level, Math.abs(i - mid)]).sort((a, b) => b[1] - a[1]);
-  for (const [level, d] of byDistance) {  // outermost first so the median ends up on top
-    const [xs, ys] = body.quantiles[level];
-    drawPath(xs, ys, "red", d === 0 ? 3 : 1.5, 1 - (1 - MIN_ALPHA) * d / Math.max(mid, 1));
-  }
-  status.textContent = `${model} - context ${context.x.length} steps, forecast ${body.ms.toFixed(0)} ms`;
+  requestForecast();  // final forecast from the complete stroke, if the last one didn't cover it
 });

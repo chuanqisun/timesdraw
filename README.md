@@ -1,6 +1,6 @@
 # timesdraw
 
-Draw a stroke with the mouse. When you release the button, [Timestral](https://github.com/mistralai/timestral) predicts how the stroke continues and draws it in red. It draws all 21 of the model's quantiles, from 0.01 to 0.99. The median (0.5) is the thick, solid line; the other lines fade evenly the further they are from it, down to 10% for 0.01 and 0.99.
+Draw a stroke with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it in red, ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99. The median (0.5) is the thick, solid line; the other lines fade evenly the further they are from it, down to 10% for 0.01 and 0.99.
 
 ## Layout
 
@@ -25,7 +25,8 @@ uv run backend/server.py     # start the server
 The first run downloads the model weights from the Hugging Face Hub and caches them. When the server prints `ready`, open <http://127.0.0.1:8000>.
 
 1. Press the mouse button and draw a stroke. Draw for at least 1–2 seconds so the model has enough context.
-2. Release the button to see the forecast. The status line shows the context length and how long the forecast took.
+2. Once the stroke has a few points, the forecast appears and updates as you move. A new forecast is requested as soon as the previous one returns, so faster models update more often. The status line shows the context length and how long the latest forecast took.
+   Releasing the button sends one last forecast for the complete stroke.
 3. Press the button again to clear the canvas and start over.
 
 To check the backend without a browser, run `uv run smoke_test.py` while the server is running.
