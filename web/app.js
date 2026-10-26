@@ -15,8 +15,9 @@ const layer = () => Object.assign(document.createElement("canvas"), { width: can
 const ghosts = layer(), traces = layer();
 const gctx = ghosts.getContext("2d"), tctx = traces.getContext("2d");
 const params = new URLSearchParams(location.search);
-const status = document.getElementById("status");
 let ready = false;
+const downloads = {};    // worker file label -> {loaded, total} bytes, for the loading screen
+let loadError = null;    // message to show on the canvas if loading fails
 let levels = [];  // quantile levels as strings, e.g. "0.05"
 let maxContext = Infinity;  // rolling window in steps, from the worker
 let pts = [];  // [t (s), x, y] with x, y in 0..1
@@ -35,24 +36,24 @@ let nextId = 0;
 
 worker.onmessage = ({ data }) => {
   if (data.type === "progress") {
-    const mb = n => (n / 1e6).toFixed(1);
-    status.textContent = `loading ${data.label}` + (data.total ? ` ${mb(data.loaded)} / ${mb(data.total)} MB` : "");
+    downloads[data.label] = { loaded: data.loaded, total: data.total };
+    scheduleRender();
   } else if (data.type === "ready") {
     ({ levels, maxContext } = data);
     ready = true;
-    status.textContent = "";
+    scheduleRender();
     console.log(`model: ${data.model}, context window: ${maxContext} steps`);
     requestForecast();
   } else if (data.type === "result") {
     pending.get(data.id)?.resolve(data);
     pending.delete(data.id);
   } else if (data.type === "error") {
-    if (data.id === undefined) { status.textContent = `error: ${data.message}`; console.error(data.message); }
+    if (data.id === undefined) { loadError = data.message; console.error(data.message); scheduleRender(); }
     pending.get(data.id)?.reject(new Error(data.message));
     pending.delete(data.id);
   }
 };
-worker.onerror = e => { status.textContent = `error: ${e.message}`; };
+worker.onerror = e => { loadError = e.message; scheduleRender(); };
 worker.postMessage({ type: "init", model: params.get("model") ?? undefined, maxContext: +params.get("max_context") || undefined });
 
 // Forecast in the worker; resolves to {data: Float32Array [level][x|y][step], ms}.
@@ -143,6 +144,36 @@ function render() {
   ctx.drawImage(ghosts, 0, 0);
   ctx.drawImage(traces, 0, 0);
   if (forecast) drawFan(ctx, forecast, 1);
+  if (!ready) drawLoading();
+}
+
+// Loading screen, drawn on the canvas: a progress bar for the downloads (the weights dominate), or the error.
+function drawLoading() {
+  const { width: w, height: h } = canvas;
+  const files = Object.values(downloads);
+  const loaded = files.reduce((a, f) => a + f.loaded, 0), total = files.reduce((a, f) => a + f.total, 0);
+  const fraction = total ? loaded / total : 0;
+  ctx.save();
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "36px monospace";
+  if (loadError) {
+    ctx.fillStyle = "#f66";
+    const lines = [];  // wrap on spaces to 80% of the canvas width
+    let line = "";
+    for (const word of `error: ${loadError}`.split(" ")) {
+      if (line && ctx.measureText(`${line} ${word}`).width > w * 0.8) { lines.push(line); line = word; }
+      else line = line ? `${line} ${word}` : word;
+    }
+    lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l, w / 2, h / 2 + (i - (lines.length - 1) / 2) * 48));
+  } else {
+    const barW = w * 0.5, barH = 8, x = (w - barW) / 2, y = h / 2 + 30;
+    const label = total ? `loading model  ${(loaded / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB` : "loading model";
+    ctx.fillStyle = "#888";
+    ctx.fillText(fraction >= 1 ? "starting model" : label, w / 2, h / 2 - 30);
+    ctx.fillStyle = "#222"; ctx.fillRect(x, y, barW, barH);
+    ctx.fillStyle = "#888"; ctx.fillRect(x, y, barW * fraction, barH);
+  }
+  ctx.restore();
 }
 
 function scheduleRender() {
@@ -181,7 +212,7 @@ async function requestForecast() {
   }
 }
 
-scheduleRender();  // paint the black background before the first stroke
+scheduleRender();  // paint the black background (and loading screen) before the first stroke
 
 // With ?record=true, record the canvas from the first stroke until Escape, then download the video.
 const RECORD = new URLSearchParams(location.search).get("record") === "true";

@@ -14,7 +14,7 @@ const chrome = spawn(process.env.CHROME ?? "chromium", [
 ], { stdio: "ignore" });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-try {
+async function main() {
   let target;
   for (let i = 0; i < 50 && !target; i++) {
     try { target = (await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json()); } catch { await sleep(200); }
@@ -36,6 +36,14 @@ try {
   await send("Page.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: 540, height: 960, deviceScaleFactor: 1, mobile: false });
   await send("Page.navigate", { url });
+  if (process.env.EARLY_SHOT) {  // screenshot the loading screen instead of drawing (EARLY_SHOT = ms to wait)
+    await sleep(+process.env.EARLY_SHOT);
+    const r = await send("Page.captureScreenshot", {});
+    writeFileSync(shot, Buffer.from(r.result.data, "base64"));
+    console.log("early screenshot:", shot, logs.filter(l => /error/.test(l)).join(" | "));
+    ws.close();
+    return;
+  }
   const t0 = Date.now();
   while (!logs.some(l => l.includes("model:")) && Date.now() - t0 < 90_000) await sleep(200);
   console.log(`model ready after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
@@ -55,6 +63,5 @@ try {
   console.log(logs.filter(l => l.includes("forecast")).slice(-3).join("\n"));
   console.log("screenshot:", shot);
   ws.close();
-} finally {
-  chrome.kill();
 }
+try { await main(); } finally { chrome.kill(); }
