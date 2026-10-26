@@ -11,5 +11,5 @@ wheels/
 
 # web port
 web/tools/golden/
-web/pkg/
+web/dist/
 web/timestral-wasm/target/

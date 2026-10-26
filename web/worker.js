@@ -38,7 +38,7 @@ let model = null;
 async function init({ model: repo = DEFAULT_MODEL, maxContext }) {
   const base = baseUrl(repo);
   const [wasm, config, weights] = await Promise.all([
-    load(new URL("pkg/timestral.wasm", import.meta.url).href, "wasm"),
+    load(new URL("timestral.wasm", import.meta.url).href, "wasm"),
     load(`${base}/config.json`, "config"),
     load(`${base}/model.safetensors`, "weights"),
   ]);

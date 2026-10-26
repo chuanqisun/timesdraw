@@ -8,8 +8,8 @@ A forecast takes about 15 ms for a 2 s stroke and about 45 ms for a 10 s one (No
 
 ```bash
 rustup target add wasm32-unknown-unknown
-web/build.sh                          # writes web/pkg/timestral.wasm (uses wasm-opt if installed)
-python3 -m http.server -d web 8001    # any static file server works
+web/build.sh                          # writes the app to web/dist/ (uses wasm-opt if installed)
+python3 -m http.server -d web/dist 8001   # any static file server works
 ```
 
 Open <http://127.0.0.1:8001>. The page shows a progress line while the weights load; the drawing controls are the same as in the main README (`?record=true` works too).
@@ -19,7 +19,7 @@ Query parameters:
 - `?model=` is a Hugging Face repo id (default `mistralai/Timestral-5M`) or a URL prefix holding `config.json` and `model.safetensors`, for example a self-hosted copy. Other Timestral sizes load too, but the 28M, 123M and 209M checkpoints are 112 to 837 MB.
 - `?max_context=` is the rolling window in steps (default 600, 10 s at 60 Hz). Unlike the Python server, the browser can't afford the model's full 32,768-step window.
 
-The app is static files plus the wasm, so it deploys to any static host (GitHub Pages included). It needs no special headers because inference is single-threaded.
+`web/dist/` is the whole app: `index.html`, `app.js`, `worker.js`, `timestral.js` and `timestral.wasm`. Every URL in it is relative, so copy the folder to any static host (GitHub Pages included), at the root or under a sub-path. It needs no special headers because inference is single-threaded. The only external request is the weights download; to avoid it, host `config.json` and `model.safetensors` yourself and pass `?model=<url prefix>`.
 
 ## Checking the port
 

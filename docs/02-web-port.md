@@ -83,7 +83,7 @@ web/
   app.js                # copy of frontend/app.js; fetch("/forecast"|"/info") replaced by worker messages
   worker.js             # loads wasm + weights (HF fetch + Cache Storage), answers {x, y, horizon}
   timestral.js          # JS wrapper over the wasm C ABI
-  pkg/                  # build output (gitignored): timestral.wasm
+  dist/                 # build output (gitignored): the deployable app, a flat folder
   timestral-wasm/       # Rust crate
     Cargo.toml
     src/lib.rs          # C ABI for wasm: model_new(config_json, safetensors_bytes), model_forecast(x, y, horizon)
@@ -149,7 +149,7 @@ Test against the full-forecast fixtures:
 - **Toolchain:** `rustup target add wasm32-unknown-unknown`. No wasm-bindgen or wasm-pack (the crate exports a plain C ABI).
   - Set `RUSTFLAGS="-C target-feature=+simd128"`, `opt-level=3`, `lto=true` and `panic=abort` for the release build.
   - Optionally run `wasm-opt -O3`.
-- Add a Node test (`node web/tools/check_wasm.mjs`) that loads `pkg/` in Node 26 and runs the same golden comparison. This proves that the SIMD path matches the scalar path.
+- Add a Node test (`node web/tools/check_wasm.mjs`) that loads `dist/timestral.wasm` in Node 26 and runs the same golden comparison. This proves that the SIMD path matches the scalar path.
 - Benchmark: median ms per forecast at contexts of 120, 600, 1920 and 4096 steps, measured in Node and in Chrome, Firefox and Safari.
 
 ### Phase 5: Web app (`web/`)
@@ -166,7 +166,7 @@ Test against the full-forecast fixtures:
   - `?model=` takes an HF repo id or a URL prefix, and defaults to `mistralai/Timestral-5M`.
   - `?max_context=` defaults to **600 steps (10 s)** (retuned after the Phase 4 benchmark; see Status), because unlike the server, the browser can't afford the 32,768-step window.
   - `?record=true` stays.
-- **Serving:** any static server works, e.g. `python -m http.server -d web`. It is deployable to GitHub Pages without special headers.
+- **Serving:** any static server works, e.g. `python -m http.server -d web/dist`. `web/build.sh` assembles `web/dist/` with relative URLs only, so it is deployable to GitHub Pages without special headers.
 - Add a `web/README` section, or a section in the root README, covering build, run, and the license note for the weights.
 
 ### Phase 6: Optional follow-ups
@@ -181,7 +181,7 @@ Test against the full-forecast fixtures:
 1. `uv run web/tools/make_golden.py` writes the fixtures.
 2. `cargo test --release` in `web/timestral-wasm` runs the per-stage and full-forecast golden comparisons natively, using the scalar path.
 3. `web/build.sh && node web/tools/check_wasm.mjs` runs the same comparison through the SIMD wasm and prints latency.
-4. `python -m http.server -d web 8001`, then open http://127.0.0.1:8001:
+4. `python -m http.server -d web/dist 8001`, then open http://127.0.0.1:8001:
    - The model downloads once; on reload it loads from the cache (check the Network tab).
    - Drawing shows the 21-line fan.
    - The console logs latency per forecast.

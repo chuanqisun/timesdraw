@@ -1,5 +1,5 @@
 // Drive the web app in headless Chromium: load the page, wait for the model, draw a stroke, screenshot.
-// Usage: node web/tools/browser_smoke.mjs [url] [screenshot.png]   (serve web/ first: python -m http.server -d web 8001)
+// Usage: node web/tools/browser_smoke.mjs [url] [screenshot.png]   (serve web/ first: python -m http.server -d web/dist 8001)
 import { spawn } from "node:child_process";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";

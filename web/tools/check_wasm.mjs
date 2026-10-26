@@ -10,7 +10,7 @@ const golden = join(here, "golden");
 const f32 = name => { const b = readFileSync(join(golden, name)); return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4); };
 const manifest = JSON.parse(readFileSync(join(golden, "manifest.json")));
 
-const wasm = readFileSync(join(here, "../pkg/timestral.wasm"));
+const wasm = readFileSync(join(here, "../dist/timestral.wasm"));
 console.log("imports:", WebAssembly.Module.imports(new WebAssembly.Module(wasm)).length, " size:", (wasm.length / 1024).toFixed(0), "KB");
 const ckpt = manifest.checkpoint;
 const model = await Timestral.create(wasm, readFileSync(join(ckpt, "config.json"), "utf8"), readFileSync(join(ckpt, "model.safetensors")));
