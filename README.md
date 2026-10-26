@@ -1,6 +1,10 @@
 # timesdraw
 
-Draw a stroke with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it in red, ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99. The median (0.5) is the solid line; the other lines fade evenly the further they are from it, down to 10% for 0.01 and 0.99.
+Draw strokes with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99, each in its own rainbow colour from red (0.01) to violet (0.99). Each line starts at the end of your stroke and fades to transparent toward the end of the forecast. Lines also start fainter the further their quantile is from the median: the median (0.5) starts solid, and 0.01 and 0.99 start at 10%.
+
+Your strokes stay on the canvas and build up. Each stroke starts violet, the colour of the highest quantile. As you draw, it shifts toward the colour of whichever forecast line your pen is closest to: following the median turns it green, and veering toward the low or high side turns it red or violet.
+
+Every forecast is also kept: as each one arrives it is drawn faintly into the canvas, underneath your strokes, so the alternatives the model considered build up into a glow around each stroke.
 
 ## Layout
 
@@ -26,8 +30,8 @@ The first run downloads the model weights from the Hugging Face Hub and caches t
 
 1. Press the mouse button and draw a stroke. Draw for at least 1â€“2 seconds so the model has enough context.
 2. Once the stroke has a few points, the forecast appears and updates as you move. A new forecast is requested as soon as the previous one returns, so faster models update more often. The page shows no text: the model name, each forecast's context length and latency, and any errors are logged to the browser console (F12).
-   Releasing the button sends one last forecast for the complete stroke.
-3. Press the button again to clear the canvas and start over.
+3. Release the button to end the stroke. The live forecast disappears; the stroke and the faint forecasts stay. Press again to start another stroke on top.
+4. Press Escape to clear the canvas, including the faint forecasts.
 
 To check the backend without a browser, run `uv run smoke_test.py` while the server is running.
 
@@ -41,6 +45,16 @@ uv run backend/server.py --model mistralai/Timestral-209M  # 837 MB, best qualit
 ```
 
 `--host` and `--port` (default `127.0.0.1:8000`) set where the server listens.
+
+## Context window
+
+The forecast uses the whole stroke until it's longer than the model's context window, which is 32,768 steps (about 9 minutes at 60 Hz). After that, only the most recent 32,768 steps are used, as a rolling window. Longer contexts make each forecast slower. To trade accuracy for speed, shrink the window:
+
+```bash
+uv run backend/server.py --max-context 600   # last 10 s of the stroke
+```
+
+The frontend reads the window from `/info` and trims the stroke before sending it.
 
 ## API
 
@@ -56,7 +70,7 @@ It returns `[xs, ys]` paths for all 21 quantile levels (0.01, 0.05, 0.1, 0.15, â
 {"quantiles": {"0.01": [[...], [...]], "0.05": [[...], [...]], ..., "0.99": [[...], [...]]}, "ms": 41.2}
 ```
 
-`GET /info` returns the loaded model name.
+`GET /info` returns the loaded model name and its context window in steps (`max_context`).
 
 ## Settings
 
@@ -64,9 +78,12 @@ These are set at the top of [frontend/app.js](frontend/app.js):
 
 - `HZ`: resampling rate, default 60
 - `HORIZON`: forecast length in steps, default 120 (about 2 s)
-- `MIN_ALPHA`: opacity of the outermost quantiles, default 0.1
-- `LINE_WIDTH`: width of both the stroke and the forecast lines, default 2
-- `STROKE_COLOR`, `FORECAST_COLOR`: line colours for the dark canvas
+- `MIN_ALPHA`: starting opacity of the outermost quantiles, default 0.1
+- `TIME_FADE`: how quickly the lines fade along the forecast, default 1.5 (1 is linear; higher fades sooner)
+- `GHOST_ALPHA`: opacity of the kept forecasts relative to the live one, default 0.08
+- `LINE_WIDTH`: width of the strokes and forecast lines, default 2
+- `HUE_LOW`, `HUE_HIGH`: the rainbow hue range, default 0 (red, 0.01) to 270 (violet, 0.99)
+- `HUE_SMOOTHING`: how quickly a stroke's colour moves toward the line it's following, default 0.2 per pointer event (lower is more gradual)
 
 ## Known issues
 

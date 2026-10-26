@@ -19,10 +19,11 @@ MAX_HORIZON = 1024
 
 
 class Predictor:
-    def __init__(self, model):
+    def __init__(self, model, max_context=None):
         self.model = model
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.fc = TimestralForecaster.from_pretrained(model, device=device)
+        # max_context=None keeps the model's trained window; longer contexts keep the most recent steps.
+        self.fc = TimestralForecaster.from_pretrained(model, device=device, max_context=max_context)
         self.lock = threading.Lock()  # one forecast at a time
 
     def predict(self, x, y, horizon):
@@ -41,7 +42,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/info":
-            return self.send_json(200, {"model": self.predictor.model})
+            return self.send_json(200, {"model": self.predictor.model, "max_context": self.predictor.fc.max_context})
         super().do_GET()
 
     def do_POST(self):
@@ -74,13 +75,14 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="mistralai/Timestral-28M")
+    ap.add_argument("--max-context", type=int, help="rolling window in steps (default: model's trained length)")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
 
-    predictor = Predictor(args.model)
+    predictor = Predictor(args.model, args.max_context)
     server = ThreadingHTTPServer((args.host, args.port), partial(Handler, predictor=predictor))
-    print(f"{args.model} ready at http://{args.host}:{args.port}")
+    print(f"{args.model} (context window {predictor.fc.max_context} steps) ready at http://{args.host}:{args.port}")
     server.serve_forever()
 
 
