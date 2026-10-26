@@ -1,6 +1,6 @@
 // Collect strokes on the canvas, forecast live, and colour each stroke by which quantile it follows.
 const HZ = 60, HORIZON = 120, MIN_POINTS = 8, MIN_ALPHA = 0.1;
-const LINE_WIDTH = 2;
+const LINE_WIDTH = 4;  // in canvas pixels; the 1080x1920 canvas is shown scaled down to fit the window
 const TIME_FADE = 1.5;  // forecast opacity falls as (1 - progress)^TIME_FADE: higher fades out sooner
 const HUE_LOW = 0, HUE_HIGH = 270;  // rainbow from red (lowest quantile) to violet (highest)
 const HUE_SMOOTHING = 0.2;  // 0..1 per pointer event: lower changes stroke colour more gradually
@@ -104,7 +104,8 @@ function drawFan(target, { levels, paths, anchor }, scale) {
 // Redraw everything: ghost forecasts, strokes, then the live forecast on top.
 function render() {
   frameQueued = false;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#000";  // painted, not left transparent, so recordings have a black background
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(ghosts, 0, 0);
   ctx.drawImage(traces, 0, 0);
   if (forecast) drawFan(ctx, forecast, 1);
@@ -148,8 +149,33 @@ async function requestForecast() {
   }
 }
 
+scheduleRender();  // paint the black background before the first stroke
+
+// With ?record=true, record the canvas from the first stroke until Escape, then download the video.
+const RECORD = new URLSearchParams(location.search).get("record") === "true";
+const VIDEO_TYPES = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+let recorder = null;
+
+function startRecording() {
+  const mimeType = VIDEO_TYPES.find(t => MediaRecorder.isTypeSupported(t));
+  const chunks = [];
+  recorder = new MediaRecorder(canvas.captureStream(60), { mimeType, videoBitsPerSecond: 8_000_000 });
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = () => {
+    const url = URL.createObjectURL(new Blob(chunks, { type: mimeType }));
+    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    Object.assign(document.createElement("a"), { href: url, download: `timesdraw-${stamp}.${ext}` }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    console.log(`recording saved (${mimeType})`);
+  };
+  recorder.start();
+  console.log(`recording started (${mimeType})`);
+}
+
 canvas.addEventListener("pointerdown", e => {
   canvas.setPointerCapture(e.pointerId);
+  if (RECORD && !recorder) startRecording();
   strokeId++;
   pts = [[e.timeStamp / 1000, ...toUnit(e)]];
   forecast = null;
@@ -183,9 +209,11 @@ canvas.addEventListener("pointerup", () => {
   scheduleRender();
 });
 
-// Escape clears all saved strokes and ghost forecasts.
+// Escape saves the recording, if any, then clears all saved strokes and ghost forecasts.
+// Stopping first keeps the cleared frame out of the video; the next stroke starts a new one.
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
+  if (recorder) { recorder.stop(); recorder = null; }
   gctx.clearRect(0, 0, ghosts.width, ghosts.height);
   tctx.clearRect(0, 0, traces.width, traces.height);
   scheduleRender();

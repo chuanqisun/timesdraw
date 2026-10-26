@@ -33,6 +33,10 @@ The first run downloads the model weights from the Hugging Face Hub and caches t
 3. Release the button to end the stroke. The live forecast disappears; the stroke and the faint forecasts stay. Press again to start another stroke on top.
 4. Press Escape to clear the canvas, including the faint forecasts.
 
+### Recording
+
+Open <http://127.0.0.1:8000/?record=true> to record a video of the canvas. Recording starts when you begin your first stroke. Pressing Escape stops it, downloads the video and clears the canvas; the next stroke starts a new recording. The video is 1080×1920 (9:16 portrait), in MP4 (H.264) where the browser supports recording it, and WebM otherwise.
+
 To check the backend without a browser, run `uv run smoke_test.py` while the server is running.
 
 ## Choosing a model
@@ -81,7 +85,7 @@ These are set at the top of [frontend/app.js](frontend/app.js):
 - `MIN_ALPHA`: starting opacity of the outermost quantiles, default 0.1
 - `TIME_FADE`: how quickly the lines fade along the forecast, default 1.5 (1 is linear; higher fades sooner)
 - `GHOST_ALPHA`: opacity of the kept forecasts relative to the live one, default 0.08
-- `LINE_WIDTH`: width of the strokes and forecast lines, default 2
+- `LINE_WIDTH`: width of the strokes and forecast lines in canvas pixels, default 4
 - `HUE_LOW`, `HUE_HIGH`: the rainbow hue range, default 0 (red, 0.01) to 270 (violet, 0.99)
 - `HUE_SMOOTHING`: how quickly a stroke's colour moves toward the line it's following, default 0.2 per pointer event (lower is more gradual)
 
