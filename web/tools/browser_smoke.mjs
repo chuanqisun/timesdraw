@@ -48,7 +48,8 @@ async function main() {
   while (!logs.some(l => l.includes("model:")) && Date.now() - t0 < 90_000) await sleep(200);
   console.log(`model ready after ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 
-  const mouse = (type, x, y) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1 });
+  const button = process.env.BUTTON ?? "left";  // BUTTON=right checks that right-drag draws nothing
+  const mouse = (type, x, y) => send("Input.dispatchMouseEvent", { type, x, y, button, buttons: type === "mouseReleased" ? 0 : button === "right" ? 2 : 1, clickCount: 1 });
   await mouse("mousePressed", 150, 450);
   for (let i = 1; i <= 90; i++) {
     const a = i / 90 * 2.6 * Math.PI;
@@ -58,6 +59,8 @@ async function main() {
   await sleep(300);
   await send("Page.captureScreenshot", {}).then(r => writeFileSync(shot, Buffer.from(r.result.data, "base64")));
   await mouse("mouseReleased", 270, 450);
+  const px = await send("Runtime.evaluate", { returnByValue: true, expression: `(() => { const c = document.getElementById("canvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] | d[i + 1] | d[i + 2]) n++; return n; })()` });
+  console.log(`${button} button: ${px.result.result.value} non-black canvas pixels`);
   console.log(logs.filter(l => !l.includes("recording")).slice(0, 4).join("\n"));
   console.log(`... ${logs.filter(l => l.includes("forecast")).length} forecasts, ${logs.filter(l => /error|exception/.test(l)).length} errors`);
   console.log(logs.filter(l => l.includes("forecast")).slice(-3).join("\n"));

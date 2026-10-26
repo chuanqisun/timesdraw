@@ -47,6 +47,7 @@ async function init({ model: repo = DEFAULT_MODEL, maxContext }) {
     load(`${base}/config.json`, "config"),
     load(`${base}/model.safetensors`, "weights"),
   ]);
+  postMessage({ type: "starting" });  // downloads done; building the model blocks this worker for a moment
   const text = new TextDecoder().decode(config);
   model = await Timestral.create(wasm, text, weights);
   model.maxContext = Math.min(maxContext || DEFAULT_MAX_CONTEXT, JSON.parse(text).context_length);

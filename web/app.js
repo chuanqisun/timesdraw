@@ -17,6 +17,7 @@ const gctx = ghosts.getContext("2d"), tctx = traces.getContext("2d");
 const params = new URLSearchParams(location.search);
 let ready = false;
 const downloads = {};    // worker file label -> {loaded, total} bytes, for the loading screen
+let starting = false;    // downloads finished, model being built
 let loadError = null;    // message to show on the canvas if loading fails
 let levels = [];  // quantile levels as strings, e.g. "0.05"
 let maxContext = Infinity;  // rolling window in steps, from the worker
@@ -37,6 +38,9 @@ let nextId = 0;
 worker.onmessage = ({ data }) => {
   if (data.type === "progress") {
     downloads[data.label] = { loaded: data.loaded, total: data.total };
+    scheduleRender();
+  } else if (data.type === "starting") {
+    starting = true;
     scheduleRender();
   } else if (data.type === "ready") {
     ({ levels, maxContext } = data);
@@ -147,12 +151,15 @@ function render() {
   if (!ready) drawLoading();
 }
 
-// Loading screen, drawn on the canvas: a progress bar for the downloads (the weights dominate), or the error.
+// Loading screen, drawn on the canvas: a progress bar while downloading (the weights dominate), a plain
+// message while the model is being built, or the error.
 function drawLoading() {
   const { width: w, height: h } = canvas;
   const files = Object.values(downloads);
   const loaded = files.reduce((a, f) => a + f.loaded, 0), total = files.reduce((a, f) => a + f.total, 0);
-  const fraction = total ? loaded / total : 0;
+  // Content-Length is the compressed size on hosts that gzip, while the worker counts decompressed bytes,
+  // so loaded can exceed total; then the true fraction is unknown and the bar is left out.
+  const fraction = total && loaded <= total ? loaded / total : null;
   ctx.save();
   ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "36px monospace";
   if (loadError) {
@@ -166,12 +173,17 @@ function drawLoading() {
     lines.push(line);
     lines.forEach((l, i) => ctx.fillText(l, w / 2, h / 2 + (i - (lines.length - 1) / 2) * 48));
   } else {
-    const barW = w * 0.5, barH = 8, x = (w - barW) / 2, y = h / 2 + 30;
-    const label = total ? `loading model  ${(loaded / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB` : "loading model";
     ctx.fillStyle = "#888";
-    ctx.fillText(fraction >= 1 ? "starting model" : label, w / 2, h / 2 - 30);
-    ctx.fillStyle = "#222"; ctx.fillRect(x, y, barW, barH);
-    ctx.fillStyle = "#888"; ctx.fillRect(x, y, barW * fraction, barH);
+    if (starting) {
+      ctx.fillText("starting model", w / 2, h / 2);
+    } else if (fraction === null) {
+      ctx.fillText(loaded ? `loading model  ${(loaded / 1e6).toFixed(1)} MB` : "loading model", w / 2, h / 2);
+    } else {
+      const barW = w * 0.5, barH = 8, x = (w - barW) / 2, y = h / 2 + 30;
+      ctx.fillText(`loading model  ${(loaded / 1e6).toFixed(1)} / ${(total / 1e6).toFixed(1)} MB`, w / 2, h / 2 - 30);
+      ctx.fillStyle = "#222"; ctx.fillRect(x, y, barW, barH);
+      ctx.fillStyle = "#888"; ctx.fillRect(x, y, barW * fraction, barH);
+    }
   }
   ctx.restore();
 }
@@ -236,7 +248,13 @@ function startRecording() {
   console.log(`recording started (${mimeType})`);
 }
 
+// iOS Safari ignores user-scalable=no; cancelling its gesture events is what stops pinch zoom.
+for (const type of ["gesturestart", "gesturechange", "gestureend"]) document.addEventListener(type, e => e.preventDefault());
+
 canvas.addEventListener("pointerdown", e => {
+  // Only the primary button draws, so right click (and ctrl+click on macOS) opens the browser's context menu.
+  // Only the first finger draws: a second touch (a pinch attempt) must not restart or extend the stroke.
+  if (!e.isPrimary || e.button !== 0 || e.ctrlKey) return;
   canvas.setPointerCapture(e.pointerId);
   if (RECORD && !recorder) startRecording();
   strokeId++;
@@ -248,7 +266,7 @@ canvas.addEventListener("pointerdown", e => {
 });
 
 canvas.addEventListener("pointermove", e => {
-  if (!drawing) return;
+  if (!drawing || !e.isPrimary) return;
   const [, px, py] = pts[pts.length - 1];
   const p = [e.timeStamp / 1000, ...toUnit(e)];
   pts.push(p);
