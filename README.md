@@ -1,6 +1,6 @@
 # timesdraw
 
-![Demo Video](./demo.mp4)
+[![Watch the video](./assets/cover.png)](./assets/demo.mp4)
 
 Draw strokes with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99, each in its own rainbow colour from red (0.01) to violet (0.99). Each line starts at the end of your stroke and fades to transparent toward the end of the forecast. Lines also start fainter the further their quantile is from the median: the median (0.5) starts solid, and 0.01 and 0.99 start at 10%.
 
