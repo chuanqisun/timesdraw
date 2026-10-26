@@ -1,6 +1,6 @@
 # timesdraw, in the browser
 
-The same drawing app as [frontend/](../frontend/), but the model runs in the page: no Python, no server. A Web Worker loads [Timestral-5M](https://huggingface.co/mistralai/Timestral-5M) (21 MB, downloaded from the Hugging Face Hub on the first visit and then kept in the browser's Cache Storage) and runs it as WebAssembly with SIMD128. The inference code is a from-scratch Rust port of the model in [timestral-wasm/](timestral-wasm/), about 200 KB of wasm with no dependencies at runtime.
+The same drawing app as [frontend/](../frontend/), but the model runs in the page: no Python, no server. A Web Worker loads [Timestral-5M](https://huggingface.co/mistralai/Timestral-5M) (21 MB, shipped inside the app and loaded from a relative URL, so no remote server is involved) and runs it as WebAssembly with SIMD128. The inference code is a from-scratch Rust port of the model in [timestral-wasm/](timestral-wasm/), about 200 KB of wasm with no dependencies at runtime.
 
 A forecast takes about 15 ms for a 2 s stroke and about 45 ms for a 10 s one (Node 26 on a 1.3 GHz laptop CPU), and its cost grows linearly with the stroke length.
 
@@ -8,7 +8,7 @@ A forecast takes about 15 ms for a 2 s stroke and about 45 ms for a 10 s one (No
 
 ```bash
 rustup target add wasm32-unknown-unknown
-web/build.sh                          # writes the app to web/dist/ (uses wasm-opt if installed)
+web/build.sh                          # writes the app to web/dist/ (downloads the 5M checkpoint on the first build)
 python3 -m http.server -d web/dist 8001   # any static file server works
 ```
 
@@ -16,10 +16,12 @@ Open <http://127.0.0.1:8001>. The page shows a progress line while the weights l
 
 Query parameters:
 
-- `?model=` is a Hugging Face repo id (default `mistralai/Timestral-5M`) or a URL prefix holding `config.json` and `model.safetensors`, for example a self-hosted copy. Other Timestral sizes load too, but the 28M, 123M and 209M checkpoints are 112 to 837 MB.
+- `?model=` is a URL prefix holding `config.json` and `model.safetensors`, absolute or relative to the app (default `./model`, the bundled 5M), or a Hugging Face repo id such as `mistralai/Timestral-28M`, which is then fetched from the Hub and kept in the browser's Cache Storage. The 28M, 123M and 209M checkpoints are 112 to 837 MB.
 - `?max_context=` is the rolling window in steps (default 600, 10 s at 60 Hz). Unlike the Python server, the browser can't afford the model's full 32,768-step window.
 
-`web/dist/` is the whole app: `index.html`, `app.js`, `worker.js`, `timestral.js` and `timestral.wasm`. Every URL in it is relative, so copy the folder to any static host (GitHub Pages included), at the root or under a sub-path. It needs no special headers because inference is single-threaded. The only external request is the weights download; to avoid it, host `config.json` and `model.safetensors` yourself and pass `?model=<url prefix>`.
+`web/dist/` is the whole app, about 21 MB: `index.html`, `app.js`, `worker.js`, `timestral.js`, `timestral.wasm`, and `model/` with Timestral-5M's `config.json`, `model.safetensors` and `LICENSE`. Every URL in it is relative, so copy the folder to any static host (GitHub Pages included), at the root or under a sub-path, and it makes no requests to other servers. It needs no special headers because inference is single-threaded.
+
+The build downloads the checkpoint from the Hugging Face Hub once (pinned to a revision and verified against its SHA-256) into `web/.model-cache/`, and reuses it afterwards.
 
 ## Checking the port
 
@@ -36,4 +38,4 @@ Quantiles agree with PyTorch to about 1e-5 for ordinary forecasts. Very long hor
 
 ## License
 
-The code is the same as the rest of this repo. The model weights are not included: they are fetched from Mistral AI's repository and are under its Modified MIT license, which among other terms does not grant rights to companies whose monthly revenue exceeds $20 million. Read the license in the weights repository before building on it commercially.
+The code is the same as the rest of this repo. `web/dist/model/` contains Mistral AI's Timestral-5M weights, which are under Mistral's Modified MIT license, not this repo's. Its `LICENSE` file is copied next to the weights and must stay with them. Among other terms, it does not grant rights to companies whose monthly revenue exceeds $20 million, so read it before deploying the app commercially.

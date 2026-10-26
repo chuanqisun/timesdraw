@@ -10,7 +10,7 @@ const shot = process.argv[3] ?? join(tmpdir(), "timesdraw-web.png");
 const port = 9333;
 const profile = process.env.PROFILE ?? mkdtempSync(join(tmpdir(), "chrome-profile-"));  // reuse PROFILE to test the weight cache
 const chrome = spawn(process.env.CHROME ?? "chromium", [
-  "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--no-sandbox", "--window-size=540,960", "about:blank",
+  "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--no-sandbox", ...(process.env.CHROME_ARGS?.split(" ") ?? []), "--window-size=540,960", "about:blank",
 ], { stdio: "ignore" });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

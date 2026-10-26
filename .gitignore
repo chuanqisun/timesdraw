@@ -13,3 +13,4 @@ wheels/
 web/tools/golden/
 web/dist/
 web/timestral-wasm/target/
+web/.model-cache/

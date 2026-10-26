@@ -10,6 +10,7 @@ Phases 1 to 5 are done (see [web/](web/) and [web/README.md](web/README.md)). De
 - **Latency** (Node 26, i7-1065G7 at 1.3 GHz base, horizon 120, median of 15 runs): 16 ms at a 120-step context, 44 ms at 600, 137 ms at 1920, 311 ms at 4096. In headless Chromium the page measured about 25 ms per forecast at 130 steps, including the worker round trip.
 - **Default `max_context` is 600 steps (10 s), not 1920.** At 1920 a forecast takes about 140 ms, which makes the live fan visibly stutter. `?max_context=` overrides it.
 - **A bug the SIMD benchmark caught:** without `+simd128` the build silently fell back to scalar code at about 3 GFLOP/s, with the same output. `grep -c f32x4.mul` on the disassembly confirms that SIMD is really in the binary.
+- **The 5M model is bundled.** `build.sh` downloads it once into `web/.model-cache/` (pinned revision, SHA-256 checked) and copies it into `dist/model/` together with its `LICENSE`, and the app loads it from `./model` by default. Hub loading and the Cache Storage cache still work for other models, via `?model=<repo id>`. The numbers below are for that Hub path:
 - Weight fetch and Cache Storage work as planned: a cold load of the 21 MB checkpoint took about 1.4 s here and a cached load about 0.2 s.
 - Not done: Phase 6 (relaxed SIMD, f16 weights, trying 28M), and testing in Firefox and Safari. `weights.rs` already reads F16 and BF16 tensors.
 
