@@ -1,0 +1,24 @@
+[project]
+name = "stroke-forecast"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Chuanqi Sun", email = "chuanqi.sun.dev@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "timestral",
+    "torch>=2.14.1",
+]
+
+[project.scripts]
+stroke-forecast = "stroke_forecast:main"
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+timestral = { git = "https://github.com/mistralai/timestral.git" }
