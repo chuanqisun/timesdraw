@@ -8,3 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# web port
+web/tools/golden/
+web/pkg/
+web/timestral-wasm/target/

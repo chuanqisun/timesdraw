@@ -11,6 +11,7 @@ Every forecast is also kept: as each one arrives it is drawn faintly into the ca
 ## Layout
 
 - [frontend/](frontend/) is a plain HTML canvas page. It records the stroke, resamples it to a uniform 60 Hz grid, sends it to the backend, and draws the forecast.
+- [web/](web/) is a standalone version that runs the model in the browser as WebAssembly, with no server. See [web/README.md](web/README.md).
 - [backend/server.py](backend/server.py) loads the model and serves `POST /forecast`. It also serves the frontend, so you only run one process.
 
 ## Requirements
