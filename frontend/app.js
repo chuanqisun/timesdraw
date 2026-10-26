@@ -1,9 +1,9 @@
 // Collect a stroke on the canvas, resample it to a uniform grid, and draw the forecast live.
 const HZ = 60, HORIZON = 120, MIN_POINTS = 8, MIN_ALPHA = 0.1;
+const LINE_WIDTH = 2, STROKE_COLOR = "#eee", FORECAST_COLOR = "#ff4d4d";
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-const status = document.getElementById("status");
 let model = "";
 let pts = [];  // [t (s), x, y] with x, y in 0..1
 let drawing = false;
@@ -15,7 +15,7 @@ let frameQueued = false;
 
 fetch("/info").then(r => r.json()).then(info => {
   model = info.model;
-  status.textContent = `${model} - draw a stroke, the forecast follows your pen`;
+  console.log(`model: ${model}`);
 });
 
 function toUnit(e) {
@@ -62,10 +62,10 @@ function render() {
     const byDistance = levels.map((level, i) => [level, Math.abs(i - mid)]).sort((a, b) => b[1] - a[1]);
     for (const [level, d] of byDistance) {  // outermost first so the median ends up on top
       const [xs, ys] = forecast[level];
-      drawPath(xs, ys, "red", d === 0 ? 3 : 1.5, 1 - (1 - MIN_ALPHA) * d / Math.max(mid, 1));
+      drawPath(xs, ys, FORECAST_COLOR, LINE_WIDTH, 1 - (1 - MIN_ALPHA) * d / Math.max(mid, 1));
     }
   }
-  if (pts.length > 1) drawPath(pts.map(p => p[1]), pts.map(p => p[2]), "black", 2, 1);
+  if (pts.length > 1) drawPath(pts.map(p => p[1]), pts.map(p => p[2]), STROKE_COLOR, LINE_WIDTH, 1);
 }
 
 function scheduleRender() {
@@ -88,12 +88,12 @@ async function requestForecast() {
     });
     const body = await res.json();
     if (id !== strokeId) return;
-    if (!res.ok) { status.textContent = `Error: ${body.error}`; return; }
+    if (!res.ok) { console.error(`forecast error: ${body.error}`); return; }
     forecast = body.quantiles;
-    status.textContent = `${model} - context ${context.x.length} steps, forecast ${body.ms.toFixed(0)} ms`;
+    console.log(`context ${context.x.length} steps, forecast ${body.ms.toFixed(0)} ms`);
     scheduleRender();
   } catch (err) {
-    status.textContent = `Error: ${err.message}`;
+    console.error(`forecast error: ${err.message}`);
   } finally {
     inFlight = false;
     requestForecast();

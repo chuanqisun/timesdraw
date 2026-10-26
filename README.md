@@ -1,6 +1,6 @@
 # timesdraw
 
-Draw a stroke with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it in red, ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99. The median (0.5) is the thick, solid line; the other lines fade evenly the further they are from it, down to 10% for 0.01 and 0.99.
+Draw a stroke with the mouse. As you draw, [Timestral](https://github.com/mistralai/timestral) keeps predicting how the stroke continues and draws it in red, ahead of your pen. It draws all 21 of the model's quantiles, from 0.01 to 0.99. The median (0.5) is the solid line; the other lines fade evenly the further they are from it, down to 10% for 0.01 and 0.99.
 
 ## Layout
 
@@ -25,7 +25,7 @@ uv run backend/server.py     # start the server
 The first run downloads the model weights from the Hugging Face Hub and caches them. When the server prints `ready`, open <http://127.0.0.1:8000>.
 
 1. Press the mouse button and draw a stroke. Draw for at least 1â€“2 seconds so the model has enough context.
-2. Once the stroke has a few points, the forecast appears and updates as you move. A new forecast is requested as soon as the previous one returns, so faster models update more often. The status line shows the context length and how long the latest forecast took.
+2. Once the stroke has a few points, the forecast appears and updates as you move. A new forecast is requested as soon as the previous one returns, so faster models update more often. The page shows no text: the model name, each forecast's context length and latency, and any errors are logged to the browser console (F12).
    Releasing the button sends one last forecast for the complete stroke.
 3. Press the button again to clear the canvas and start over.
 
@@ -60,7 +60,13 @@ It returns `[xs, ys]` paths for all 21 quantile levels (0.01, 0.05, 0.1, 0.15, â
 
 ## Settings
 
-`HZ` (resampling rate, default 60) and `HORIZON` (forecast length in steps, default 120, about 2 s) and `MIN_ALPHA` (opacity of the outermost quantiles, default 0.1) are set at the top of [frontend/app.js](frontend/app.js).
+These are set at the top of [frontend/app.js](frontend/app.js):
+
+- `HZ`: resampling rate, default 60
+- `HORIZON`: forecast length in steps, default 120 (about 2 s)
+- `MIN_ALPHA`: opacity of the outermost quantiles, default 0.1
+- `LINE_WIDTH`: width of both the stroke and the forecast lines, default 2
+- `STROKE_COLOR`, `FORECAST_COLOR`: line colours for the dark canvas
 
 ## Known issues
 
